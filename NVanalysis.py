@@ -1,5 +1,5 @@
 ### My name is Shanying! I wrote this piece'o shit! Today's date is 04/11/2013
-### I am making an edit to test github
+### This is now the new version where I make shit awesome!! 
 
 import pylab as py
 import winspec
