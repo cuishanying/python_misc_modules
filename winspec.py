@@ -16,9 +16,6 @@
 # May 2010:
 # Extended to handle spectroscopy data (x-calibration) and 
 # Spectrum class added for convenience.
-# Kasey Russell (krussell at post.harvard.edu)
-#
-# Some yoffset features added by Shanying Cui
 # Kasey Russell (krussell@post.harvard.edu)
 #
 
@@ -89,10 +86,10 @@ class Spectrum():
                                 the spectrum.")
         
         self.lum = self.lum[ pylab.find(self.wavelen > start) ]
-        self.wavelen = self.wavelen[ find(self.wavelen > start) ]
+        self.wavelen = self.wavelen[ pylab.find(self.wavelen > start) ]
         
         self.lum = self.lum[ pylab.find(self.wavelen < stop) ]
-        self.wavelen = self.wavelen[ find(self.wavelen < stop) ]
+        self.wavelen = self.wavelen[ pylab.find(self.wavelen < stop) ]
 
 
     def counts_per_second( self ):
@@ -414,7 +411,7 @@ class Spectrum():
                 self.lum /= self.lum[-1]
                 self.scale_factor = 1.0/self.lum[-1]
             else:
-                lum_i = find( self.wavelen < wavelen )[-1]
+                lum_i = pylab.find( self.wavelen < wavelen )[-1]
                 self.lum /= self.lum[ lum_i ]
                 self.scale_factor = 1.0/self.lum[ lum_i ]
         elif value is not None:
@@ -667,19 +664,19 @@ class Spectrum():
             return
 
         d = numpy.diff(self.lum)
-        spikes = pylab.find(abs(d)>threshold*std(d)) 
+        spikes = pylab.find(abs(d)>threshold*pylab.std(d)) 
         if ( len(spikes)>0.1*len(d) ): 
             print 'Did not remove spikes because it wanted to remove too many.'
-        spikes=delete( spikes,pylab.find(numpy.diff(spikes)==1)+1 ) # if spike is one point, don't delete point after as well.
+        spikes=pylab.delete( spikes,pylab.find(numpy.diff(spikes)==1)+1 ) # if spike is one point, don't delete point after as well.
         if interpolate==False:
-            self.wavelen = delete(self.wavelen,spikes+1)
-            self.lum = delete(self.lum,spikes+1)
+            self.wavelen = pylab.delete(self.wavelen,spikes+1)
+            self.lum = pylab.delete(self.lum,spikes+1)
         else:
             # don't actually 'interpolate', just set it equal to the previous point
             # (actual interpolation could get messy in the case of a two-point spike, for example)
             for i in spikes+1:
                 self.lum[i] = self.lum[i-3]
-        if (numpy.any(numpy.abs(numpy.diff(self.lum))>threshold*std(d))):
+        if (numpy.any(numpy.abs(numpy.diff(self.lum))>threshold*pylab.std(d))):
             self.remove_cosmic_rays( threshold, interpolate )
 
 
@@ -716,7 +713,7 @@ class Spectrum():
             return None
             
         if npoints is None:
-            fit = polyfit( self.wavelen, self.lum, 1 )
+            fit = pylab.polyfit( self.wavelen, self.lum, 1 )
         else:
             x = numpy.zeros( 2*npoints )
             x[:npoints] = self.wavelen[:npoints]
