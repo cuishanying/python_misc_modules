@@ -6,46 +6,41 @@ import pylab as py
 import winspec
 from numpy import ndarray
 
-class Spectrum():
+class Spectrum:
     """
     This class loads a .SPE file or .txt file
     for .txt file (saved from Clarke's Raman), 
     first column is wavelength and 2nd column is luminescence
     """
+
+# TODO: 
+    @classmethod
+    def fromFile(cls,fname):
+        return cls(fname = fname)
     
-    """ String for .txt filename """
-    _fname = ''
+    def __init__(self,**kwargs):
+        self._fname = ''
+        self._wavelen = []
+        self._lum = []
     
-    """ List of wavelengths in this spectrum"""
-    _wavelen = []
-    
-    """ List of luminescenses associated with the wavelength at each index""" 
-    _lum = []
-    
-    """ Boolean to determine if file has been saved from low-to-high wavelengths"""
-    _reverse = False
-    
-    def __init__(self,*args):
-        if len(args) == 1:
-            assert type(args[0]) is str, "input must be either one str, or 2 lists"
-            
-            self._fname = args[0]
-            self._wavelen = py.loadtxt(self._fname)[:,0]    
-            if self._wavelen[0] > self._wavelen[-1]:
-                self._wavelen = self._wavelen[::-1]
-                self._reverse=True
-                
+        if 'fname' in kwargs:
+
+            self._fname = kwargs['fname']
+            self._wavelen = py.loadtxt(self._fname)[:,0]
             self._lum = py.loadtxt(self._fname)[:,1]
-            if self._reverse is True:
-                self._lum = self._lum[::-1]
                 
             assert len(self._wavelen) == len(self._lum), "Wavelength and luminescence length should match"
-        elif len(args) == 2:
-            assert type(args[0]) is ndarray or type(args[0]) is list, "first input must be list or ndarray"
-            assert type(args[1]) is ndarray or type(args[0]) is list, "second input must be list or ndarray"
+        
+        else:
+            assert type(kwargs['wavelen']) in [ndarray, list], "first input must be list or ndarray"
+            assert type(kwargs['lum']) in [ndarray, list], "second input must be list or ndarray"
             
-            self._wavelen = args[0]
-            self._lum = args[1] 
+            self._wavelen = kwargs['wavelen']
+            self._lum = kwargs['lum'] 
+            
+        if self._wavelen[0] > self._wavelen[-1]:
+            self._wavelen = self._wavelen[::-1]
+            self._lum = self._lum[::-1]
         
     def get_wavelen(self):
         return self._wavelen
@@ -175,35 +170,30 @@ class Spectrum():
 #        return NV
     
 
-class Map():
-    
-    """ filename """
-    _fname = ''
-    _wavelen=[]
-    _specList=[]
-    _reverse=False
-    _z=[]
-    _nfocus=0
-    
+class Map:
     def __init__(self,fname):
         """
         initializes Map object, and loads a z scan or x, y, z map. 
         """
-        
+        self._specList=[]
+        self._focusedSpec = []
+        self._z=[]
+        self._nfocus=0
         self._fname = fname
         self._wavelen = py.loadtxt(self._fname)[0]
-        if self._wavelen[0] > self._wavelen[-1]:
+        
+        isReversed = self._wavelen[0] > self._wavelen[-1]
+        if isReversed:
             self._wavelen = self._wavelen[::-1]
-            self._reverse=True
             
         data = py.loadtxt(self._fname,skiprows=1)
         
         # check what kind of a file it is
         lendiff = py.shape(data)[1] - len(self._wavelen)
         if lendiff == 1:
-            self.load_focus(data)
+            self.load_focus(data, isReversed)
         if lendiff == 3:
-            self.load_map(data)
+            self.load_map(data, isReversed)
     
     def get_wavelen(self):
         return self._wavelen
@@ -211,27 +201,29 @@ class Map():
     def get_specList(self):
         return self._specList
     
+    def get_focusedSpec(self):
+        return self._focusedSpec
+    
     def get_zvals(self):
         return self._z
     
-    def load_focus(self,data):
+    def load_focus(self, data, isReversed):
         """
         return list of Spectrum 
         """
         self._z=data[:,0]
         self._nfocus=len(data[:,0])
-        for focus in data:
-            if self._reverse == True:
-                lum = focus[1:][::-1]
-            else:
-                lum = focus[1:]
-            self._specList.append(Spectrum(self._wavelen,lum))
         
-        self._specList=[self._specList] # only one point
+        spectrums = []
+        for focus in data:
+            lum = focus[1:][::-1] if isReversed else focus[1:]
+            spectrums.append(Spectrum(wavelen=self._wavelen,lum=lum))
+        
+        self._specList = [spectrums]  # only one point
         
         assert len(self._specList[0]) == self._nfocus, "Num focus points must equal num of luminescence"
         
-    def load_map(self,data):
+    def load_map(self, data, isReversed):
         
         # sort
         data=list(data)
@@ -248,11 +240,11 @@ class Map():
         
         # extract lum data    
         for row in data:
-            if self._reverse == True:
+            if isReversed:
                 lum = row[3:][::-1]
             else:
                 lum = row[3:]
-            self._specList.append(Spectrum(self._wavelen,lum))
+            self._specList.append(Spectrum(wavelen=self._wavelen,lum=lum))
 
         # split specList into points, ie. [[z1, z1, z3],[z1,z2,z3]]
         self._specList=[self._specList[i:i+self._nfocus] for i in range(0,len(self._specList),self._nfocus)]
@@ -262,14 +254,16 @@ class Map():
 
     def find_focus(self, wavelen,plot=False):
         """
-        within a list of spectrum objects of the same point and a wavelength, find the focus of highest intensity
-        Returns list index values where the lum is maximized for each point in map
+        for each point, finds the focus of highest intensity at given wavelength
+        saves the Spectrum with "best focus" in a new list called self._focusedSpec
+        
+        returns z values of the best focus at each point
         
         wavelen: int or float
             Finds focus with max luminescence at this wavelength (nm) 
         """
         lum = []
-        maxlum_index = []
+        bestz=[]
         for point in self._specList:
             if plot == True:
                 py.figure()
@@ -277,11 +271,13 @@ class Map():
                 lum.append(spec.get_lumAtWavelen(wavelen))
                 if plot == True:
                     spec.plot()
-            maxlum_index.append(lum.index(max(lum)))
+            maxlum_index = lum.index(max(lum))
+            self._focusedSpec.append(point[maxlum_index])
+            bestz.append(self._z[maxlum_index])
             lum = []
-             
-        return  maxlum_index
-    
+        
+        return bestz
+        
     def get_NVratio(self,maxwavelen=638,*args,**kwargs):
         """
         Finds best focus at given wavelength for each point, 
@@ -292,21 +288,25 @@ class Map():
         NVvalues=[]
         indexList = self.find_focus(maxwavelen)
             
-        for i in py.arange(len(self._specList)):
-            focusedPoint = self._specList[i][indexList[i]]
-            NVvalues.append(focusedPoint.get_NVratio(*args,**kwargs))
+        for point in self._focusedSpec:
+            NVvalues.append(point.get_NVratio(*args,**kwargs))
+        
+        NVvalues = py.asarray(NVvalues)
         
         return NVvalues
 
-    def plot(self,maxdata, *args, **kwargs):
-        """ copied directly from previous version, not complete"""
-        for i in range(len(maxdata)):
+    def plotPoints(self, hidelegend=False, *args, **kwargs):
+        """ 
+        Plots focused points
+        """
+        for i in range(len(self._focusedSpec)):
             if i > 6:
                 fmt = '--'
             else:
                 fmt = '-'
-            py.plot(self._wavelen, maxdata[i],label=str(i),linestyle=fmt)
-        py.legend()
+            self._focusedSpec[i].plot(label=str(i),linestyle=fmt,*args, **kwargs)
+        if hidelegend is not False:
+            py.legend()
         
     def removeData(self):
         """
