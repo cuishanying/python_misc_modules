@@ -265,17 +265,23 @@ class Map:
         lum = []
         bestz=[]
         for point in self._specList:
+            a=[]
             if plot == True:
                 py.figure()
             for spec in point:
                 lum.append(spec.get_lumAtWavelen(wavelen))
                 if plot == True:
                     spec.plot()
+            if plot == True:
+                for z in self._z:
+                    a.append(str(z))
+                py.legend(a)
             maxlum_index = lum.index(max(lum))
             self._focusedSpec.append(point[maxlum_index])
             bestz.append(self._z[maxlum_index])
             lum = []
         
+        print bestz
         return bestz
         
     def get_NVratio(self,maxwavelen=638,*args,**kwargs):
@@ -295,20 +301,22 @@ class Map:
         
         return NVvalues
 
-    def plotPoints(self, hidelegend=False, *args, **kwargs):
+    def plot_points(self, *args, **kwargs):
         """ 
         Plots focused points
+        to plot legend, use showlegend = True keyword argument
         """
+        assert len(self._focusedSpec) != 0, "haven't found focus yet"
+        
         for i in range(len(self._focusedSpec)):
             if i > 6:
                 fmt = '--'
             else:
                 fmt = '-'
             self._focusedSpec[i].plot(label=str(i),linestyle=fmt,*args, **kwargs)
-        if hidelegend is not False:
             py.legend()
         
-    def removeData(self):
+    def remove_data(self):
         """
         Removes crappy spectra as necessary
         """
