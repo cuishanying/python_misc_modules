@@ -13,7 +13,6 @@ class Spectrum:
     first column is wavelength and 2nd column is luminescence
     """
 
-# TODO: 
     @classmethod
     def fromFile(cls,fname):
         return cls(fname = fname)
@@ -281,8 +280,18 @@ class Map:
             bestz.append(self._z[maxlum_index])
             lum = []
         
-        print bestz
+        #print bestz
         return bestz
+    
+    def define_focus(self,zindexlist):
+        """
+        zindexlist: list
+            List of indexes for the desired focus
+        """
+        assert len(zindexlist) == len(self._specList), 'length of zindexlist must match number of points'
+        self._focusedSpec=[]
+        for point, index in zip(self._specList,zindexlist):
+            self._focusedSpec.append(point[index])
         
     def get_NVratio(self,maxwavelen=638,*args,**kwargs):
         """
@@ -292,7 +301,8 @@ class Map:
             Default is 638nm, maximizing to NVm ZPL
         """
         NVvalues=[]
-        indexList = self.find_focus(maxwavelen)
+        if self._focusedSpec==[]:
+            indexList = self.find_focus(maxwavelen)
             
         for point in self._focusedSpec:
             NVvalues.append(point.get_NVratio(*args,**kwargs))
@@ -314,9 +324,18 @@ class Map:
             else:
                 fmt = '-'
             self._focusedSpec[i].plot(label=str(i),linestyle=fmt,*args, **kwargs)
-            py.legend()
+        py.legend()
         
-    def remove_data(self):
+    def remove_point(self,pointindex):
         """
-        Removes crappy spectra as necessary
+        Removes crappy points as necessary, inputting an index or a list of index
         """
+        assert self._focusedSpec !=[], 'FocusedSpec list must have values'
+        # need to insert some way of making sure the list of pointindexes are sorted from lowest to highest
+        if type(pointindex) is list:
+            for point in pointindex[::-1]:
+                del self._focusedSpec[point]
+        elif type(pointindex) is int:
+            del self._focusedSpec[pointindex]
+        else: 
+            raise 'pointindex must be either list or int'
